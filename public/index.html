@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Шибениця - Клієнт-Сервер</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #ffffff;
+            flex-direction: column;
+        }
+        .container {
+            background-color: #242424;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .container h2 { margin-bottom: 5px; color: #ffffff; }
+        .subtitle { color: #a0a0a0; margin-bottom: 25px; font-size: 14px; }
+        
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; margin-bottom: 5px; color: #e0e0e0; font-weight: bold; font-size: 14px; }
+        .input-group input {
+            width: 100%; padding: 10px; background-color: #333333; color: #ffffff;
+            border: 1px solid #444444; border-radius: 6px; box-sizing: border-box;
+        }
+        .input-group input:focus { outline: none; border-color: #00a8ff; }
+        
+        .action-btn {
+            background-color: #00a8ff; color: white; border: none; padding: 12px;
+            width: 100%; border-radius: 6px; font-size: 16px; font-weight: bold;
+            cursor: pointer; margin-top: 10px; transition: background 0.3s;
+        }
+        .action-btn:hover { background-color: #008ecc; }
+        
+        #wordDisplay {
+            font-size: 28px; letter-spacing: 8px; color: #00a8ff; font-weight: bold; margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="registerBlock">
+    <h2>Реєстрація</h2>
+    <div class="subtitle">Приєднуйся до гри "Шибениця"</div>
+    
+    <div class="input-group">
+        <label for="username">Нікнейм</label>
+        <input type="text" id="username" placeholder="Введіть ваш нікнейм">
+    </div>
+    
+    <div class="input-group">
+        <label for="password">Пароль</label>
+        <input type="password" id="password" placeholder="Створіть пароль">
+    </div>
+    
+    <button class="action-btn" onclick="register()">Зареєструватися</button>
+</div>
+
+<div class="container" id="gameBlock">
+    <h2>Ігрова зона</h2>
+    <div class="subtitle">Отримайте слово від сервера</div>
+    
+    <button class="action-btn" onclick="startGame()">Згенерувати слово</button>
+    <div id="wordDisplay">_ _ _ _ _</div>
+</div>
+
+<script>
+    async function register() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        if(!username || !password) {
+            alert("Будь ласка, заповніть всі поля!");
+            return;
+        }
+
+        try {
+            const response = await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const result = await response.json();
+            alert(result.message);
+        } catch (error) {
+            console.error("Помилка з'єднання з сервером:", error);
+        }
+    }
+
+    async function startGame() {
+        try {
+            const response = await fetch('/get-word');
+            const data = await response.json();
+            
+            document.getElementById('wordDisplay').innerText = '_ '.repeat(data.wordLength);
+            console.log("Слово з сервера (для тестування):", data.word);
+        } catch (error) {
+            console.error("Помилка з'єднання з сервером:", error);
+        }
+    }
+</script>
+
+</body>
+</html>
