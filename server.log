@@ -861,3 +861,11 @@
 [2026-04-24T17:38:59.101Z] OUT | IP: ::ffff:127.0.0.1 | Action: Polling Response | Details: {"status":"Сервер працює","activePlayers":7}
 [2026-04-24T17:39:03.597Z] IN | IP: ::ffff:127.0.0.1 | Action: GET /poll-status (Short Polling) | Details: {"token":"t0imifbxiah"}
 [2026-04-24T17:39:04.105Z] OUT | IP: ::ffff:127.0.0.1 | Action: Polling Response | Details: {"status":"Сервер працює","activePlayers":4}
+[2026-05-03T08:23:16.652Z] IN | IP: ::ffff:127.0.0.1 | Action: POST /register | Details: {"username":"Artem"}
+[2026-05-03T08:23:17.173Z] OUT | IP: ::ffff:127.0.0.1 | Action: Register Response | Details: {"success":true,"token":"6nw9vpgqplv","message":"Реєстрація успішна! Ваш токен згенеровано."}
+[2026-05-03T08:23:20.039Z] IN | IP: ::ffff:127.0.0.1 | Action: GET /poll-status (Short Polling) | Details: {"token":"6nw9vpgqplv"}
+[2026-05-03T08:23:20.550Z] OUT | IP: ::ffff:127.0.0.1 | Action: Polling Response | Details: {"status":"Сервер працює","activePlayers":2}
+[2026-05-03T08:23:25.372Z] IN | IP: ::ffff:127.0.0.1 | Action: GET /poll-status (Short Polling) | Details: {"token":"6nw9vpgqplv"}
+[2026-05-03T08:23:25.885Z] OUT | IP: ::ffff:127.0.0.1 | Action: Polling Response | Details: {"status":"Сервер працює","activePlayers":1}
+[2026-05-03T08:23:30.440Z] IN | IP: ::ffff:127.0.0.1 | Action: GET /poll-status (Short Polling) | Details: {"token":"6nw9vpgqplv"}
+[2026-05-03T08:23:30.953Z] OUT | IP: ::ffff:127.0.0.1 | Action: Polling Response | Details: {"status":"Сервер працює","activePlayers":4}

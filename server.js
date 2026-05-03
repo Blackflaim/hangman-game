@@ -1,72 +1,125 @@
 const express = require('express');
 const fs = require('fs');
-const path = require('path');
-const app = express();
+const xml2js = require('xml2js');
 
-app.use(express.json());
-app.use(express.static('public')); // Папка для клієнтських файлів
-
-const USERS_FILE = 'users.json';
+const USERS_FILE = 'users.xml';
 const LOG_FILE = 'server.log';
 
-function logMessage(clientIp, action, details) {
-    const time = new Date().toISOString();
-    const logEntry = `[${time}] IP: ${clientIp} | Action: ${action} | Details: ${JSON.stringify(details)}\n`;
-    
-    // Запис логів у текстовий файл
-    fs.appendFileSync(LOG_FILE, logEntry, 'utf8');
-    console.log(logEntry.trim());
+// 1. Message Logger
+class MessageLogger {
+    static log(direction, clientIp, action, details) {
+        const time = new Date().toISOString();
+        const logEntry = `[${time}] ${direction} | IP: ${clientIp} | Action: ${action} | Details: ${JSON.stringify(details)}\n`;
+        fs.appendFileSync(LOG_FILE, logEntry, 'utf8');
+        console.log(logEntry.trim());
+    }
 }
 
-// Middleware для логування всіх HTTP-запитів
-app.use((req, res, next) => {
-    logMessage(req.ip, `HTTP ${req.method} ${req.url}`, req.body);
-    next();
-});
-
-// Ендпоінт для реєстрації користувача із JSON-серіалізацією
-app.post('/register', (req, res) => {
-    const { username, password } = req.body;
-    let users = [];
-
-    // Десеріалізація існуючих даних з файлу
-    if (fs.existsSync(USERS_FILE)) {
-        const fileData = fs.readFileSync(USERS_FILE, 'utf8');
-        users = JSON.parse(fileData);
+// 2. DataBase Layer
+class Database {
+    static readUsers() {
+        if (!fs.existsSync(USERS_FILE)) return { Users: { User: [] } };
+        let usersData = { Users: { User: [] } };
+        const xmlData = fs.readFileSync(USERS_FILE, 'utf8');
+        new xml2js.Parser().parseString(xmlData, (err, result) => {
+            if (result && result.Users && result.Users.User) {
+                usersData.Users.User = Array.isArray(result.Users.User) ? result.Users.User : [result.Users.User];
+            }
+        });
+        return usersData;
     }
 
-    // Перевірка, чи існує користувач
-    if (users.find(u => u.username === username)) {
-        const errorMsg = { success: false, message: "Користувач вже існує" };
-        logMessage(req.ip, "Register Failed", errorMsg);
-        return res.status(400).json(errorMsg);
+
+    static saveUsers(usersData) {
+        const xml = new xml2js.Builder().buildObject(usersData);
+        fs.writeFileSync(USERS_FILE, xml, 'utf8');
+    }
+}
+
+// 3. Workers
+class Worker {
+    constructor(id) { this.id = id; }
+   
+    processTask(task) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                if (task.type === 'REGISTER') {
+                    const usersData = Database.readUsers();
+                    const userExists = usersData.Users.User.find(u => u.username && u.username[0] === task.data.username);
+                   
+                    if (userExists) {
+                        resolve({ success: false, message: "Користувач вже існує" });
+                    } else {
+                        // Генеруємо токен
+                        const token = Math.random().toString(36).substring(2, 15);
+                        usersData.Users.User.push({ username: task.data.username, password: task.data.password, token, score: 0 });
+                        Database.saveUsers(usersData);
+                        resolve({ success: true, token: token, message: "Реєстрація успішна! Ваш токен згенеровано." });
+                    }
+                } else if (task.type === 'POLLING') {
+                    // Обробка Short Polling
+                    resolve({ status: "Сервер працює", activePlayers: Math.floor(Math.random() * 10) + 1 });
+                }
+            }, 500);
+        });
+    }
+}
+
+// 4. Message Queue
+class MessageQueue {
+    constructor() {
+        this.workers = [new Worker(1), new Worker(2)]; // Два воркери
     }
 
-    // Додавання нового користувача
-    const newUser = { username, password, score: 0 };
-    users.push(newUser);
 
-    // Серіалізація об'єкта та збереження у файл
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+    async addTask(task) {
+        // випадковий воркер для балансування
+        const worker = this.workers[Math.floor(Math.random() * this.workers.length)];
+        return await worker.processTask(task);
+    }
+}
 
-    const successMsg = { success: true, message: "Реєстрація успішна" };
-    logMessage(req.ip, "Register Success", successMsg);
-    res.json(successMsg);
+// 5. Client Messages Listener
+const app = express();
+app.use(express.json());
+app.use(express.static('public'));
+
+const queue = new MessageQueue();
+
+app.post('/register', async (req, res) => {
+    MessageLogger.log('IN', req.ip, 'POST /register', { username: req.body.username });
+   
+    const responseData = await queue.addTask({ type: 'REGISTER', data: req.body });
+   
+    MessageLogger.log('OUT', req.ip, 'Register Response', responseData);
+    res.status(responseData.success ? 200 : 400).json(responseData);
 });
 
-// Ендпоінт для отримання випадкового слова
+// Ендпоінт для Short Polling
+app.get('/poll-status', async (req, res) => {
+    const token = req.headers['authorization'];
+    MessageLogger.log('IN', req.ip, 'GET /poll-status (Short Polling)', { token });
+
+
+    if (!token) {
+        return res.status(401).json({ message: "Немає токена авторизації!" });
+    }
+
+
+    const responseData = await queue.addTask({ type: 'POLLING', data: { token } });
+   
+    MessageLogger.log('OUT', req.ip, 'Polling Response', responseData);
+    res.json(responseData);
+});
+
+// Ендпоінт для слова
 app.get('/get-word', (req, res) => {
     const words = ["ПРОГРАМУВАННЯ", "АРХІТЕКТУРА", "СЕРВЕР", "КЛІЄНТ", "ШИБЕНИЦЯ"];
     const randomWord = words[Math.floor(Math.random() * words.length)];
-    
-    const response = { wordLength: randomWord.length, word: randomWord };
-    logMessage(req.ip, "Get Word", { wordLength: response.wordLength });
-    
-    res.json(response);
+    res.json({ wordLength: randomWord.length, word: randomWord });
 });
 
-const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`Сервер запущено на http://localhost:${PORT}`);
-    logMessage("System", "Server Started", { port: PORT });
+
+app.listen(3000, () => {
+    console.log(`Сервер запущено: http://localhost:3000`);
 });
