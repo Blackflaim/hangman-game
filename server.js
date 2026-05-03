@@ -1,67 +1,72 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const xml2js = require('xml2js');
-
 const app = express();
+
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('public')); // Папка для клієнтських файлів
 
-const USERS_FILE = 'users.xml';
+const USERS_FILE = 'users.json';
 const LOG_FILE = 'server.log';
-
-const parser = new xml2js.Parser();
-const builder = new xml2js.Builder();
 
 function logMessage(clientIp, action, details) {
     const time = new Date().toISOString();
     const logEntry = `[${time}] IP: ${clientIp} | Action: ${action} | Details: ${JSON.stringify(details)}\n`;
+    
+    // Запис логів у текстовий файл
     fs.appendFileSync(LOG_FILE, logEntry, 'utf8');
     console.log(logEntry.trim());
 }
 
+// Middleware для логування всіх HTTP-запитів
 app.use((req, res, next) => {
     logMessage(req.ip, `HTTP ${req.method} ${req.url}`, req.body);
     next();
 });
 
+// Ендпоінт для реєстрації користувача із JSON-серіалізацією
 app.post('/register', (req, res) => {
     const { username, password } = req.body;
-    let usersData = { Users: { User: [] } };
+    let users = [];
 
+    // Десеріалізація існуючих даних з файлу
     if (fs.existsSync(USERS_FILE)) {
-        const xmlData = fs.readFileSync(USERS_FILE, 'utf8');
-        parser.parseString(xmlData, (err, result) => {
-            if (result && result.Users && result.Users.User) {
-                usersData.Users.User = Array.isArray(result.Users.User) ? result.Users.User : [result.Users.User];
-            }
-        });
+        const fileData = fs.readFileSync(USERS_FILE, 'utf8');
+        users = JSON.parse(fileData);
     }
 
-    const userExists = usersData.Users.User.find(u => u.username && u.username[0] === username);
-    if (userExists) {
-        logMessage(req.ip, "Register Failed", { message: "Користувач вже існує" });
-        return res.status(400).json({ success: false, message: "Користувач вже існує" });
+    // Перевірка, чи існує користувач
+    if (users.find(u => u.username === username)) {
+        const errorMsg = { success: false, message: "Користувач вже існує" };
+        logMessage(req.ip, "Register Failed", errorMsg);
+        return res.status(400).json(errorMsg);
     }
 
-    usersData.Users.User.push({ username, password, score: 0 });
+    // Додавання нового користувача
+    const newUser = { username, password, score: 0 };
+    users.push(newUser);
 
-    const newXmlData = builder.buildObject(usersData);
-    fs.writeFileSync(USERS_FILE, newXmlData, 'utf8');
+    // Серіалізація об'єкта та збереження у файл
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
 
-    logMessage(req.ip, "Register Success", { username });
-    res.json({ success: true, message: "Реєстрація успішна!" });
+    const successMsg = { success: true, message: "Реєстрація успішна" };
+    logMessage(req.ip, "Register Success", successMsg);
+    res.json(successMsg);
 });
 
+// Ендпоінт для отримання випадкового слова
 app.get('/get-word', (req, res) => {
     const words = ["ПРОГРАМУВАННЯ", "АРХІТЕКТУРА", "СЕРВЕР", "КЛІЄНТ", "ШИБЕНИЦЯ"];
     const randomWord = words[Math.floor(Math.random() * words.length)];
     
-    logMessage(req.ip, "Get Word Generated", { word: randomWord });
-    res.json({ wordLength: randomWord.length, word: randomWord });
+    const response = { wordLength: randomWord.length, word: randomWord };
+    logMessage(req.ip, "Get Word", { wordLength: response.wordLength });
+    
+    res.json(response);
 });
 
-app.listen(3000, () => {
-    console.log(`Сервер працює! Відкрийте http://localhost:3000 у браузері`);
-    logMessage("System", "Server Started", { port: 3000 });
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`Сервер запущено на http://localhost:${PORT}`);
+    logMessage("System", "Server Started", { port: PORT });
 });

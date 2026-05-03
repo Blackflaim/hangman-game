@@ -65,52 +65,103 @@
         <input type="password" id="password" placeholder="Створіть пароль">
     </div>
     
-    <button class="action-btn" onclick="register()">Зареєструватися</button>
+    <button class="action-btn">Зареєструватися</button>
 </div>
 
 <div class="container" id="gameBlock">
     <h2>Ігрова зона</h2>
     <div class="subtitle">Отримайте слово від сервера</div>
     
-    <button class="action-btn" onclick="startGame()">Згенерувати слово</button>
+    <button class="action-btn">Згенерувати слово</button>
     <div id="wordDisplay">_ _ _ _ _</div>
 </div>
 
 <script>
-    async function register() {
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
+class GameModel {
+    async registerUser(username, password) {
+        const response = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        return await response.json();
+    }
 
-        if(!username || !password) {
-            alert("Будь ласка, заповніть всі поля!");
+    async fetchWord() {
+        const response = await fetch('/get-word');
+        return await response.json();
+    }
+}
+
+class GameView {
+    constructor() {
+        // Знаходимо всі елементи на сторінці
+        this.usernameInput = document.getElementById('username');
+        this.passwordInput = document.getElementById('password');
+        this.wordDisplay = document.getElementById('wordDisplay');
+    }
+
+    getUserData() {
+        return {
+            username: this.usernameInput.value,
+            password: this.passwordInput.value
+        };
+    }
+
+    renderWord(wordLength) {
+        this.wordDisplay.innerText = '_ '.repeat(wordLength);
+    }
+
+    showMessage(message) {
+        alert(message);
+    }
+
+    bindRegisterAction(handler) {
+        document.querySelectorAll('button')[0].addEventListener('click', handler);
+    }
+
+    bindGetWordAction(handler) {
+        document.querySelectorAll('button')[1].addEventListener('click', handler);
+    }
+}
+
+class GameController {
+    constructor(model, view) {
+        this.model = model;
+        this.view = view;
+
+        this.view.bindRegisterAction(this.handleRegister.bind(this));
+        this.view.bindGetWordAction(this.handleGetWord.bind(this));
+    }
+
+    async handleRegister() {
+        const data = this.view.getUserData();
+        
+        if (!data.username || !data.password) {
+            this.view.showMessage("Будь ласка, заповніть всі поля!");
             return;
         }
 
         try {
-            const response = await fetch('/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const result = await response.json();
-            alert(result.message);
+            const result = await this.model.registerUser(data.username, data.password);
+            this.view.showMessage(result.message);
         } catch (error) {
-            console.error("Помилка з'єднання з сервером:", error);
+            console.error(error);
         }
     }
 
-    async function startGame() {
+    async handleGetWord() {
         try {
-            const response = await fetch('/get-word');
-            const data = await response.json();
-            
-            document.getElementById('wordDisplay').innerText = '_ '.repeat(data.wordLength);
-            console.log("Слово з сервера (для тестування):", data.word);
+            const data = await this.model.fetchWord();
+            this.view.renderWord(data.wordLength);
+            console.log("Підказка з сервера:", data.word);
         } catch (error) {
-            console.error("Помилка з'єднання з сервером:", error);
+            console.error(error);
         }
     }
+}
+
+const app = new GameController(new GameModel(), new GameView());
 </script>
 
 </body>
